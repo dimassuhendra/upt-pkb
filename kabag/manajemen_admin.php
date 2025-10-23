@@ -4,6 +4,7 @@
 require_once '../auth_controller.php';
 require_once '../controllerUserManagement.php'; // Akan digunakan untuk menghitung total Admin
 
+startSessionByRole('Petugas'); 
 // Lindungi halaman: Pastikan user sudah login dan perannya adalah 'Petugas' (Supervisor/Kabag)
 checkLoginAndRole('Petugas', 'kabag'); 
 

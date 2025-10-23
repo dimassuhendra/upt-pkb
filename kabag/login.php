@@ -1,33 +1,22 @@
 <?php
-// kabag/login.php
-
-// PENTING: Hubungkan ke controller yang ada di root folder (tingkat atas)
 require_once '../auth_controller.php';
+
+// PENTING: Panggil fungsi sesi unik untuk Kabag/Petugas
+startSessionByRole('Petugas'); 
 
 $error_message = '';
 
-// 1. Proses Form Login jika ada POST request
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $username = $_POST['username'] ?? '';
     $password = $_POST['password'] ?? '';
-    
-    // Panggil fungsi login dengan peran yang spesifik: 'Petugas' (Supervisor/Kabag)
-    $result = loginUserBackend($username, $password, 'Petugas');
-    
-    if ($result['status'] === true) {
-        // Login berhasil, arahkan ke dashboard Petugas di folder yang sama (index.php)
-        header('Location: index.php'); 
-        exit();
-    } else {
-        // Login gagal, tampilkan pesan error
+
+    // Panggil fungsi login untuk Petugas/Kabag
+    $result = loginUserBackend($username, $password, 'Petugas'); 
+
+    if (!$result['status']) {
+        // Jika gagal, tampilkan pesan error
         $error_message = $result['message'];
     }
-}
-
-// 2. Jika Petugas sudah login saat mengakses halaman login.php, arahkan ke dashboard
-if (isset($_SESSION['is_logged_in']) && $_SESSION['is_logged_in'] === true && $_SESSION['role'] === 'Petugas') {
-    header('Location: index.php'); 
-    exit();
 }
 ?>
 

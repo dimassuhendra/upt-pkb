@@ -1,34 +1,37 @@
 <?php
-// kabag/index.php (Dashboard Utama Petugas/Supervisor)
-
 require_once '../auth_controller.php';
-require_once '../controllerUserManagement.php'; // Akan digunakan untuk menghitung total Admin
-require_once '../controllerDashboard.php'; // Digunakan untuk menampilkan statistik
-require_once '../controllerStafPelayanan.php'; // Untuk menampilkan daftar staf yang ada
+require_once '../controllerUserManagement.php'; // Mengelola CRUD user_backend (Admin/Petugas)
+require_once '../controllerDashboard.php';      // Digunakan untuk menampilkan statistik
 
+// 1. GANTI ROLE NAME: Gunakan 'Petugas' karena itu adalah nilai ENUM di database
+startSessionByRole('Petugas'); 
+
+// 2. PROTEKSI HALAMAN
 // Lindungi halaman: Pastikan user sudah login dan perannya adalah 'Petugas'
 checkLoginAndRole('Petugas', 'kabag'); 
 
 // --- Ambil Data yang Dibutuhkan untuk Dashboard ---
 
-// 1. Data Ringkasan Global
+// 1. Data Ringkasan Global (total survey, total kendaraan selesai/menunggu)
 $summary = getSummaryStatistics();
 
-// 2. Data Kinerja Per Staf Pelayanan (tabel staf_pelayanan)
-$staf_performance = getPerformanceByStaf();
+// 2. Data Kinerja Per Admin (Admin adalah yang diukur kinerjanya, bukan Staf Pelayanan)
+$admin_performance = getPerformanceByAdmin(); // Fungsi ini harus ada di dashboard_controller.php
 
-// 3. Data Jumlah User (Asumsi Anda akan membuat user_management_controller)
-// Jika user_management_controller belum dibuat, anggap fungsi ini ada atau ganti dengan hitungan manual
-// Dihitung manual untuk saat ini, tetapi idealnya ini ada di controller terpisah
+// 3. Data Jumlah User (Menggunakan user_management_controller.php)
+
+/** * Fungsi Helper untuk menghitung total user berdasarkan role
+ * (Diletakkan di sini untuk sementara, idealnya di user_management_controller.php)
+ */
 function countTotalUsersByRole($role) {
     global $pdo;
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM user_backend WHERE role = ?");
     $stmt->execute([$role]);
     return $stmt->fetchColumn();
 }
-$total_admins = countTotalUsersByRole('Admin');
-$total_staf = count(readAllStafPelayanan());
 
+$total_admins = countTotalUsersByRole('Admin');
+$total_kabag = countTotalUsersByRole('Petugas'); // Total Kabag/Petugas
 ?>
 
 <!DOCTYPE html>

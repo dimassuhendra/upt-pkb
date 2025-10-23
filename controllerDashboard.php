@@ -15,6 +15,41 @@ require_once 'auth_controller.php';
  * Fungsi ini cocok untuk Dashboard Admin dan Petugas (Supervisor).
  * @return array Data ringkasan statistik
  */
+function getPerformanceByAdmin() {
+    global $pdo;
+    
+    try {
+        // Gabungkan Kendaraan (k), Survei (s), dan Admin (u)
+        $sql = "
+            SELECT 
+                u.id_user,
+                u.nama_lengkap AS nama_admin,
+                COUNT(DISTINCT k.id_kendaraan) AS total_kendaraan_input,
+                COUNT(s.id_survey) AS total_survei_diterima,
+                AVG(s.rating_pelayanan) AS avg_rating_pelayanan
+            FROM 
+                user_backend u
+            LEFT JOIN 
+                kendaraan k ON u.id_user = k.id_user
+            LEFT JOIN 
+                survey s ON k.id_kendaraan = s.id_kendaraan
+            WHERE 
+                u.role = 'Admin'
+            GROUP BY 
+                u.id_user, u.nama_lengkap
+            ORDER BY 
+                avg_rating_pelayanan DESC, total_survei_diterima DESC;
+        ";
+        
+        $stmt = $pdo->query($sql);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    } catch (PDOException $e) {
+        error_log("Error getting Admin performance: " . $e->getMessage());
+        return [];
+    }
+}
+
 function getSummaryStatistics() {
     global $pdo;
 

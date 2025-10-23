@@ -3,7 +3,7 @@
 
 require_once '../auth_controller.php';
 require_once '../controllerKendaraan.php'; 
-
+startSessionByRole('Admin');// Jika tidak, user akan di-redirect ke admin/login.php
 // Lindungi halaman: Pastikan user sudah login dan perannya adalah 'Admin'
 checkLoginAndRole('Admin', 'admin'); 
 

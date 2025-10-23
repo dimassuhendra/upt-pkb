@@ -3,8 +3,7 @@ require_once '../auth_controller.php';
 require_once '../controllerDashboard.php'; // Digunakan untuk menampilkan statistik
 require_once '../controllerStafPelayanan.php'; // Untuk menampilkan daftar staf yang ada
 
-// Lindungi halaman: Pastikan user sudah login dan perannya adalah 'Admin'
-// Jika tidak, user akan di-redirect ke admin/login.php
+startSessionByRole('Admin');// Jika tidak, user akan di-redirect ke admin/login.php
 checkLoginAndRole('Admin', 'admin'); 
 
 // Ambil data yang dibutuhkan untuk dashboard

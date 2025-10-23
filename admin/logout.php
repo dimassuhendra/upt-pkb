@@ -6,5 +6,5 @@ require_once '../auth_controller.php';
 
 // Panggil fungsi logout. Fungsi ini akan menghancurkan sesi dan mengarahkan user
 // ke halaman login di folder yang sesuai ('admin/login.php')
-logoutUser(); 
+logoutUser('admin'); 
 ?>

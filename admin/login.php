@@ -1,34 +1,24 @@
 <?php
-// admin/login.php
-
-// PENTING: Hubungkan ke controller yang ada di root folder (tingkat atas)
 require_once '../auth_controller.php';
+
+// PENTING: Panggil fungsi sesi unik untuk Admin
+startSessionByRole('Admin'); 
 
 $error_message = '';
 
-// 1. Proses Form Login jika ada POST request
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $username = $_POST['username'] ?? '';
     $password = $_POST['password'] ?? '';
-    
-    // Panggil fungsi login dengan peran yang spesifik: 'Admin'
-    $result = loginUserBackend($username, $password, 'Admin');
-    
-    if ($result['status'] === true) {
-        // Login berhasil, arahkan ke dashboard Admin di folder yang sama (index.php)
-        header('Location: index.php'); 
-        exit();
-    } else {
-        // Login gagal, tampilkan pesan error
+
+    // Panggil fungsi login yang akan melakukan autentikasi dan redirect jika sukses
+    // Catatan: Fungsi loginUserBackend AKAN OTOMATIS REDIRECT jika sukses.
+    $result = loginUserBackend($username, $password, 'Admin'); 
+
+    if (!$result['status']) {
+        // Jika gagal (result['status'] == false), tampilkan pesan error
         $error_message = $result['message'];
     }
-}
-
-// 2. Jika Admin sudah login saat mengakses halaman login.php, arahkan ke dashboard
-// Ini mencegah admin yang sudah login kembali ke halaman login
-if (isset($_SESSION['is_logged_in']) && $_SESSION['is_logged_in'] === true && $_SESSION['role'] === 'Admin') {
-    header('Location: index.php'); 
-    exit();
+    // Jika sukses, kode tidak akan mencapai baris ini karena sudah di-redirect di dalam fungsi.
 }
 ?>
 

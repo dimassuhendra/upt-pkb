@@ -15,70 +15,124 @@ require_once 'auth_controller.php';
  * Fungsi ini cocok untuk Dashboard Admin dan Petugas (Supervisor).
  * @return array Data ringkasan statistik
  */
-function getPerformanceByAdmin() {
+
+const SURVEY_TABLE = 'survey'; 
+const KENDARAAN_TABLE = 'kendaraan';
+
+// =========================================================================
+
+/**
+ * Mengambil data kinerja Admin (jumlah survei yang diselesaikan)
+ * berdasarkan rentang waktu yang spesifik.
+ *
+ * @param string $period 'daily', 'weekly', atau 'monthly'
+ * @return array Data kinerja per admin
+ */
+
+function getAdminPerformanceByPeriod($period) {
     global $pdo;
+    $surveyTable = SURVEY_TABLE;
+    $kendaraanTable = KENDARAAN_TABLE;
+    $where_period = '';
+
+    // 1. Tentukan batasan waktu (Logika tanggal sudah diperbaiki dan dipertahankan)
+    switch ($period) {
+        case 'daily':
+            $where_period = "AND s.tanggal_survey >= DATE(NOW()) AND s.tanggal_survey < DATE_ADD(DATE(NOW()), INTERVAL 1 DAY)";
+            break;
+        case 'weekly':
+            $where_period = "AND s.tanggal_survey >= DATE_SUB(DATE(NOW()), INTERVAL 7 DAY)";
+            break;
+        case 'monthly':
+            $where_period = "AND YEAR(s.tanggal_survey) = YEAR(NOW()) AND MONTH(s.tanggal_survey) = MONTH(NOW())";
+            break;
+        default:
+            return [];
+    }
     
-    try {
-        // Gabungkan Kendaraan (k), Survei (s), dan Admin (u)
-        $sql = "
-            SELECT 
-                u.id_user,
-                u.nama_lengkap AS nama_admin,
-                COUNT(DISTINCT k.id_kendaraan) AS total_kendaraan_input,
-                COUNT(s.id_survey) AS total_survei_diterima,
-                AVG(s.rating_pelayanan) AS avg_rating_pelayanan
+    // 2. Query Utama dengan JOIN 3 Tabel
+    $sql = "SELECT 
+                u.nama_lengkap AS admin_name,
+                COUNT(s.id_survey) AS total_surveys
             FROM 
                 user_backend u
             LEFT JOIN 
-                kendaraan k ON u.id_user = k.id_user
+                $kendaraanTable k ON u.id_user = k.id_user -- User Input Kendaraan
             LEFT JOIN 
-                survey s ON k.id_kendaraan = s.id_kendaraan
+                $surveyTable s ON k.id_kendaraan = s.id_kendaraan -- Kendaraan Punya Survey
+                $where_period -- Filter waktu diterapkan pada tabel survey
             WHERE 
                 u.role = 'Admin'
             GROUP BY 
                 u.id_user, u.nama_lengkap
             ORDER BY 
-                avg_rating_pelayanan DESC, total_survei_diterima DESC;
-        ";
-        
-        $stmt = $pdo->query($sql);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+                total_surveys DESC";
 
+    try {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
-        error_log("Error getting Admin performance: " . $e->getMessage());
+        error_log("Error di getAdminPerformanceByPeriod: " . $e->getMessage());
         return [];
     }
 }
 
+
 function getSummaryStatistics() {
     global $pdo;
+    $surveyTable = SURVEY_TABLE;
 
+    // Statistik Ringkasan Global tidak perlu JOIN 3 tabel
     try {
-        // Query 1: Total Survey Selesai
-        $sql_total = "SELECT COUNT(*) AS total_surveys FROM survey";
-        $total_surveys = $pdo->query($sql_total)->fetchColumn();
-
-        // Query 2: Rata-rata Rating Global (dari semua aspek)
-        $sql_avg = "SELECT 
-                        AVG(rating_pelayanan) AS avg_pelayanan,
-                        AVG(rating_fasilitas) AS avg_fasilitas,
-                        AVG(rating_kecepatan) AS avg_kecepatan
-                    FROM survey";
-        $avg_ratings = $pdo->query($sql_avg)->fetch();
-
-        return [
-            'total_surveys' => (int)$total_surveys,
-            'avg_pelayanan' => round((float)$avg_ratings['avg_pelayanan'] ?? 0, 2),
-            'avg_fasilitas' => round((float)$avg_ratings['avg_fasilitas'] ?? 0, 2),
-            'avg_kecepatan' => round((float)$avg_ratings['avg_kecepatan'] ?? 0, 2),
-        ];
-
+        $stmt = $pdo->query("
+            SELECT 
+                COUNT(*) AS total_surveys,
+                COALESCE(AVG(rating_pelayanan), 0) AS avg_pelayanan,
+                COALESCE(AVG(rating_fasilitas), 0) AS avg_fasilitas,
+                COALESCE(AVG(rating_kecepatan), 0) AS avg_kecepatan
+            FROM $surveyTable
+        ");
+        return $stmt->fetch(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
-        error_log("Error in getSummaryStatistics: " . $e->getMessage());
-        return [
-            'total_surveys' => 0, 'avg_pelayanan' => 0, 
-            'avg_fasilitas' => 0, 'avg_kecepatan' => 0
-        ];
+         error_log("Error di getSummaryStatistics: " . $e->getMessage());
+        return ['total_surveys' => 0, 'avg_pelayanan' => 0, 'avg_fasilitas' => 0, 'avg_kecepatan' => 0];
+    }
+}
+
+/**
+ * FUNGSI INI MENGUKUR KINERJA ADMIN (bukan Staf Pelayanan)
+ * Hasilnya akan digunakan di tabel bagian bawah dashboard.
+ * * FIX: Menggunakan JOIN 3 tabel (User -> Kendaraan -> Survey)
+ * * @return array Data kinerja per Admin
+ */
+function getPerformanceByAdmin() {
+    global $pdo;
+    $surveyTable = SURVEY_TABLE;
+    $kendaraanTable = KENDARAAN_TABLE;
+    
+    $sql = "
+        SELECT 
+            u.nama_lengkap AS nama_staf, -- Admin dianggap 'staf' yang melakukan input
+            COUNT(s.id_survey) AS total_survey_dikerjakan,
+            ROUND(COALESCE(AVG(s.rating_pelayanan), 0), 2) AS avg_rating_pelayanan,
+            ROUND(COALESCE(AVG(s.rating_fasilitas), 0), 2) AS avg_rating_fasilitas,
+            ROUND(COALESCE(AVG(s.rating_kecepatan), 0), 2) AS avg_rating_kecepatan,
+            ROUND(COALESCE( (AVG(s.rating_pelayanan) + AVG(s.rating_fasilitas) + AVG(s.rating_kecepatan)) / 3, 0), 2) AS avg_rating_total
+        FROM user_backend u
+        LEFT JOIN $kendaraanTable k ON u.id_user = k.id_user -- Join 1: User ke Kendaraan
+        LEFT JOIN $surveyTable s ON k.id_kendaraan = s.id_kendaraan -- Join 2: Kendaraan ke Survey
+        WHERE u.role = 'Admin'
+        GROUP BY u.id_user, u.nama_lengkap
+        ORDER BY avg_rating_total DESC
+    ";
+    
+    try {
+        $stmt = $pdo->query($sql);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        error_log("Error di getPerformanceByAdmin: " . $e->getMessage());
+        return [];
     }
 }
 
@@ -164,3 +218,80 @@ function getRawSurveyData($filters = []) {
         return [];
     }
 }
+
+/**
+ * Mengambil data kinerja Admin (jumlah survei yang diselesaikan)
+ * berdasarkan rentang waktu yang spesifik.
+ *
+ * @param string $period 'daily', 'weekly', atau 'monthly'
+ * @return array Data kinerja per admin
+ */
+// function getAdminPerformanceByPeriod($period) {
+//     global $pdo;
+//     $sql = '';
+    
+//     // Tentukan batasan waktu (semua periode dibandingkan dengan tanggal hari ini)
+//     switch ($period) {
+//         case 'daily':
+//             // Total hari ini
+//             $sql = "SELECT 
+//                         u.nama_lengkap AS admin_name,
+//                         COUNT(s.id_survey) AS total_surveys
+//                     FROM 
+//                         user_backend u
+//                     LEFT JOIN 
+//                         survey_data s ON u.id_user = s.id_admin 
+//                         AND DATE(s.tanggal_survey) = CURDATE()
+//                     WHERE 
+//                         u.role = 'Admin'
+//                     GROUP BY 
+//                         u.id_user, u.nama_lengkap
+//                     ORDER BY 
+//                         total_surveys DESC";
+//             break;
+
+//         case 'weekly':
+//             // Total 7 hari terakhir
+//             $sql = "SELECT 
+//                         u.nama_lengkap AS admin_name,
+//                         COUNT(s.id_survey) AS total_surveys
+//                     FROM 
+//                         user_backend u
+//                     LEFT JOIN 
+//                         survey_data s ON u.id_user = s.id_admin 
+//                         AND s.tanggal_survey >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+//                     WHERE 
+//                         u.role = 'Admin'
+//                     GROUP BY 
+//                         u.id_user, u.nama_lengkap
+//                     ORDER BY 
+//                         total_surveys DESC";
+//             break;
+
+//         case 'monthly':
+//             // Total bulan ini
+//             $sql = "SELECT 
+//                         u.nama_lengkap AS admin_name,
+//                         COUNT(s.id_survey) AS total_surveys
+//                     FROM 
+//                         user_backend u
+//                     LEFT JOIN 
+//                         survey_data s ON u.id_user = s.id_admin 
+//                         AND YEAR(s.tanggal_survey) = YEAR(CURDATE())
+//                         AND MONTH(s.tanggal_survey) = MONTH(CURDATE())
+//                     WHERE 
+//                         u.role = 'Admin'
+//                     GROUP BY 
+//                         u.id_user, u.nama_lengkap
+//                     ORDER BY 
+//                         total_surveys DESC";
+//             break;
+            
+//         default:
+//             return [];
+//     }
+
+//     $stmt = $pdo->prepare($sql);
+//     $stmt->execute();
+//     return $stmt->fetchAll(PDO::FETCH_ASSOC);
+// }
